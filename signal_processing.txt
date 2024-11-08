@@ -4,9 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Constants
-CHUNK = 1024 * 2       # Number of samples per second
-FORMAT = pa.paInt16    # Audio format (16-bit)
-CHANNELS = 1           # Number of audio channels (mono)
+CHUNK = 1024 * 2       # Number of samples per frame
+FORMAT = pa.paInt16    # 16-bit audio format
+CHANNELS = 1           # Mono channel
 RATE = 44100           # Sampling rate in Hz
 
 # Initialize PyAudio and stream
@@ -20,34 +20,56 @@ stream = p.open(
     frames_per_buffer=CHUNK
 )
 
-# Read initial chunk of data and convert to integer format
-data = stream.read(CHUNK)
-dataInt = struct.unpack(str(CHUNK) + 'h', data)
-
 # Set up plot
-fig, (ax, ax1) = plt.subplots(2)
-x_fft = np.linspace(0, RATE, CHUNK)
-x = np.arange(0, 2 * CHUNK, 2)
-line, = ax.plot(x, np.random.rand(CHUNK), 'r')
-line_fft, = ax1.semilogx(x_fft, np.random.rand(CHUNK), 'r')
+fig, (ax, ax1) = plt.subplots(2, figsize=(10, 6))
 
-# Plot settings
+# Time-domain plot
+x = np.arange(0, 2 * CHUNK, 2)  # Time axis
+line, = ax.plot(x, np.random.rand(CHUNK), 'r')
 ax.set_ylim(-32000, 32000)
 ax.set_xlim(0, CHUNK)
+ax.set_title("Real-Time Audio Signal (Time Domain)")
+ax.set_xlabel("Samples")
+ax.set_ylabel("Amplitude")
+
+# Frequency-domain plot
+x_fft = np.linspace(0, RATE, CHUNK)
+line_fft, = ax1.semilogx(x_fft, np.random.rand(CHUNK), 'b')
 ax1.set_ylim(0, 1)
 ax1.set_xlim(20, RATE / 2)
+ax1.set_title("Frequency Spectrum (Frequency Domain)")
+ax1.set_xlabel("Frequency (Hz)")
+ax1.set_ylabel("Magnitude")
 
 # Display the plot in non-blocking mode
+plt.tight_layout()
 plt.show(block=False)
 
+print("Real-Time Audio Capture: Speak into the microphone and observe the plots.")
+
 # Real-time plotting loop
-while True:
-    data = stream.read(CHUNK)
-    dataInt = struct.unpack(str(CHUNK) + 'h', data)
-    line.set_ydata(dataInt)
-    line_fft.set_ydata(np.abs(np.fft.fft(dataInt)) * 2 / (33000 * CHUNK))
+try:
+    while True:
+        # Read and unpack audio data
+        data = stream.read(CHUNK)
+        dataInt = struct.unpack(str(CHUNK) + 'h', data)
+
+        # Update time-domain plot
+        line.set_ydata(dataInt)
+        
+        # Update frequency-domain plot
+        line_fft.set_ydata(np.abs(np.fft.fft(dataInt)) * 2 / (33000 * CHUNK))
+
+        # Refresh plot
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+        plt.pause(0.01)  # small pause to allow GUI event processing
+
+except KeyboardInterrupt:
+    print("Audio capture stopped.")
     
-    # Update plot
-    fig.canvas.draw()
-    fig.canvas.flush_events()
-    plt.pause(0.01)  # small pause to allow GUI event processing
+finally:
+    # Clean up and close the stream
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
